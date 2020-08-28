@@ -15,8 +15,7 @@ vpc:
       a: 10.0.8.0/24
       b: 10.0.9.0/24
       C: 10.0.10.0/24
-
-cfn:
-  parameters:
-    DnsSupport: true
-    DnsHostnames: true
+  cfn:
+    parameters:
+      DnsSupport: true
+      DnsHostnames: true

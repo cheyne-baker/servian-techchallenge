@@ -24,4 +24,8 @@
 
   tasks:
 
-    - name: 
+    - name: Generate Deployment Template
+      template:
+        src: "{{ templatePath }}/{{ deploy }}.yml"
+        dest: "{{ buildPath }}/{{ deploy }}.yml"
+        mode: '0644'

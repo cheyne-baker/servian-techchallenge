@@ -1,13 +1,17 @@
 ---
-#AWS Environment Vars
+# Required Environment Vars
 accountId: "{{ lookup('env', 'ACCOUNT_ID') }}"
 accessKey: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
 secretKey: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
+deploy: "{{ lookup('env', 'DEPLOY') }}"
+
+# Optional Environment Vars
 region: "{{ lookup('env', 'REGION') | default('ap-southeast-2',true) }}"
 state: "{{ lookup('env', 'STATE') | default('present',true) }}"
 
 # Ansible Config Vars
 buildPath: "{{ playbook_dir }}/build"
+templatePath: "{{ playbook_dir }}/templates"
 
 # AWS Deployment Vars
 # Create Failure can have the following values
