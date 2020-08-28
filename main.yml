@@ -1,0 +1,27 @@
+---
+
+- name: Start Navist Package Deployment
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files: 
+    - '{{ playbook_dir }}/vars/config.yml'
+    - '{{ playbook_dir }}/vars/common.yml'
+
+  pre_tasks:
+
+    - name: "Clean Up Build Folder"
+      file:
+        state: absent
+        path: "{{ buildPath }}"
+      changed_when: false
+
+    - name: "Create Build Folder"
+      file:
+        path: "{{ buildPath }}"
+        state: directory
+        mode: '0755'
+
+  tasks:
+
+    - name: 

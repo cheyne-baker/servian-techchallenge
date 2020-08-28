@@ -1,0 +1,18 @@
+---
+#AWS Environment Vars
+accountId: "{{ lookup('env', 'ACCOUNT_ID') }}"
+accessKey: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
+secretKey: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
+region: "{{ lookup('env', 'REGION') | default('ap-southeast-2',true) }}"
+state: "{{ lookup('env', 'STATE') | default('present',true) }}"
+
+# Ansible Config Vars
+buildPath: "{{ playbook_dir }}/build"
+
+# AWS Deployment Vars
+# Create Failure can have the following values
+# - DO_NOTHING
+# - ROLLBACK
+# - DELETE
+createFailure: DELETE 
+sessionName: TechChallengeDeployment
