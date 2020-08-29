@@ -9,17 +9,17 @@ Description: >
 Parameters:
   DnsSupport:
     AllowedValues:
-      - true
-      - false
-    Default: true
+      - "true"
+      - "false"
+    Default: "true"
     Description: >
       Use AWS Route53 to provide DNS resolution for the VPC.
     Type: String
   DnsHostnames:
     AllowedValues:
-      - true
-      - false
-    Default: false
+      - "true"
+      - "false"
+    Default: "false"
     Description: >
       Enable AWS Route53 to provide DNS names to instances instead of just IP.
     Type: String
