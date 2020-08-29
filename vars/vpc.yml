@@ -17,5 +17,5 @@ vpc:
       c: 10.0.10.0/24
   cfn:
     parameters:
-      DnsSupport: true
-      DnsHostnames: true
+      DnsSupport: "true"
+      DnsHostnames: "true"

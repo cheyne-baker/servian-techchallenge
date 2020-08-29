@@ -24,9 +24,6 @@
 
   tasks:
 
-    - debug:
-        msg: "{{ deploy }}"
-
     - name: Run Cloudformation Deployment
       import_role:
         name: deploy
@@ -36,12 +33,20 @@
         - state == "present"
         - deploy != "all"
 
-#    - name: Run Cloudformation Deployment End to End
-#      include_role:
-#        name: deploy
-#      vars: 
-#        deployItem: "{{ item }}"
-#      loop: "{{ all }}"
-#      when: 
-#        - state == "present"
-#        - deploy == "all"
+    - name: Run Cloudformation Deployment End to End
+      include_role:
+        name: deploy
+      vars: 
+        deployItem: "{{ item }}"
+      loop: "{{ all }}"
+      when: 
+        - state == "present"
+        - deploy == "all"
+
+  post_tasks:
+  
+    - name: "Clean Up Build Folder"
+      file:
+        state: absent
+        path: "{{ buildPath }}"
+      changed_when: false

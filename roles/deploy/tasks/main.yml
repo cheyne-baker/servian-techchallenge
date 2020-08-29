@@ -16,4 +16,5 @@
     aws_secret_key: "{{ secretKey }}"
     on_create_failure: "{{ createFailure }}"
     template: "{{ buildPath }}/{{ deployItem }}.yml"
-    template_parameters: "{{ [deployItem].cfn.parameters | default({}) }}"
+    template_parameters: 
+      "{{ vars[deployItem].cfn.parameters | default({}) }}"
