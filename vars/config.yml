@@ -1,6 +1,6 @@
 ---
 # Required Environment Vars
-accountId: "{{ lookup('env', 'ACCOUNT_ID') }}"
+#accountId: "{{ lookup('env', 'ACCOUNT_ID') }}"
 accessKey: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') }}"
 secretKey: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') }}"
 deploy: "{{ lookup('env', 'DEPLOY') }}"

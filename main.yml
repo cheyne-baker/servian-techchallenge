@@ -1,6 +1,6 @@
 ---
 
-- name: Start Navist Package Deployment
+- name: Start Servian Tech Challenge Deployment
   hosts: localhost
   connection: local
   gather_facts: true
@@ -24,8 +24,24 @@
 
   tasks:
 
-    - name: Generate Deployment Template
-      template:
-        src: "{{ templatePath }}/{{ deploy }}.yml"
-        dest: "{{ buildPath }}/{{ deploy }}.yml"
-        mode: '0644'
+    - debug:
+        msg: "{{ deploy }}"
+
+    - name: Run Cloudformation Deployment
+      import_role:
+        name: deploy
+      vars: 
+        deployItem: "{{ deploy }}"
+      when: 
+        - state == "present"
+        - deploy != "all"
+
+#    - name: Run Cloudformation Deployment End to End
+#      include_role:
+#        name: deploy
+#      vars: 
+#        deployItem: "{{ item }}"
+#      loop: "{{ all }}"
+#      when: 
+#        - state == "present"
+#        - deploy == "all"

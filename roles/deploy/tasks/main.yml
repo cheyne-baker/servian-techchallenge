@@ -1,0 +1,19 @@
+- name: Get Variables for Deployment
+  include_vars: "{{ playbook_dir }}/vars/{{ deployItem }}.yml"
+
+- name: Generate Cloudformation Template
+  template:
+    src: "{{ templatePath }}/{{ deployItem }}.yml"
+    dest: "{{ buildPath }}/{{ deployItem }}.yml"
+    mode: '0644'
+
+- name: Deploy Cloudformation Template
+  cloudformation:
+    stack_name: "{{ company }}-{{ deployItem }}"
+    state: "{{ state }}"
+    region: "{{ region }}"
+    aws_access_key: "{{ accessKey }}"
+    aws_secret_key: "{{ secretKey }}"
+    on_create_failure: "{{ createFailure }}"
+    template: "{{ buildPath }}/{{ deployItem }}.yml"
+    template_parameters: "{{ [deployItem].cfn.parameters | default({}) }}"

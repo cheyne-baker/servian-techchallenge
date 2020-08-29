@@ -34,7 +34,7 @@ Resources:
   Vpc:
     Type: AWS::EC2::VPC
     Properties: 
-      CidrBlock: "{{ vpc.cidr }}"
+      CidrBlock: "10.0.0.0/20"
       EnableDnsHostnames: !Ref DnsHostnames
       EnableDnsSupport: !Ref DnsSupport
       InstanceTenancy: default
@@ -51,7 +51,7 @@ Resources:
       AvailabilityZone: !Select
         - 0 
         - Fn::GetAZs: !Ref "AWS::Region"
-      CidrBlock: "{{ vpc.subnet.secure.a }}"
+      CidrBlock: "10.0.0.0/24"
       Tags:
         - Key: Name
           Value: !Sub "${AWS::StackName}-secure-a"
@@ -63,7 +63,7 @@ Resources:
       AvailabilityZone: !Select
         - 1 
         - Fn::GetAZs: !Ref "AWS::Region"
-      CidrBlock: "{{ vpc.subnet.secure.b }}"
+      CidrBlock: "10.0.1.0/24"
       Tags:
         - Key: Name
           Value: !Sub "${AWS::StackName}-secure-b"
@@ -75,7 +75,7 @@ Resources:
       AvailabilityZone: !Select
         - 2 
         - Fn::GetAZs: !Ref "AWS::Region"
-      CidrBlock: "{{ vpc.subnet.secure.c }}"
+      CidrBlock: "10.0.2.0/24"
       Tags:
         - Key: Name
           Value: !Sub "${AWS::StackName}-secure-c"
@@ -90,7 +90,7 @@ Resources:
       AvailabilityZone: !Select
         - 0 
         - Fn::GetAZs: !Ref "AWS::Region"
-      CidrBlock: "{{ vpc.subnet.private.a }}"
+      CidrBlock: "10.0.4.0/24"
       Tags:
         - Key: Name
           Value: !Sub "${AWS::StackName}-private-a"
@@ -102,7 +102,7 @@ Resources:
       AvailabilityZone: !Select
         - 1 
         - Fn::GetAZs: !Ref "AWS::Region"
-      CidrBlock: "{{ vpc.subnet.private.b }}"
+      CidrBlock: "10.0.5.0/24"
       Tags:
         - Key: Name
           Value: !Sub "${AWS::StackName}-private-b"
@@ -114,7 +114,7 @@ Resources:
       AvailabilityZone: !Select
         - 2 
         - Fn::GetAZs: !Ref "AWS::Region"
-      CidrBlock: "{{ vpc.subnet.private.c }}"
+      CidrBlock: "10.0.6.0/24"
       Tags:
         - Key: Name
           Value: !Sub "${AWS::StackName}-private-c"
@@ -129,7 +129,7 @@ Resources:
       AvailabilityZone: !Select
         - 0 
         - Fn::GetAZs: !Ref "AWS::Region"
-      CidrBlock: "{{ vpc.subnet.public.a }}"
+      CidrBlock: "10.0.8.0/24"
       Tags:
         - Key: Name
           Value: !Sub "${AWS::StackName}-public-a"
@@ -141,7 +141,7 @@ Resources:
       AvailabilityZone: !Select
         - 1 
         - Fn::GetAZs: !Ref "AWS::Region"
-      CidrBlock: "{{ vpc.subnet.public.b }}"
+      CidrBlock: "10.0.9.0/24"
       Tags:
         - Key: Name
           Value: !Sub "${AWS::StackName}-public-b"
@@ -153,7 +153,7 @@ Resources:
       AvailabilityZone: !Select
         - 2 
         - Fn::GetAZs: !Ref "AWS::Region"
-      CidrBlock: "{{ vpc.subnet.public.c }}"
+      CidrBlock: "10.0.10.0/24"
       Tags:
         - Key: Name
           Value: !Sub "${AWS::StackName}-public-c"
@@ -219,4 +219,3 @@ Outputs:
     Value: !Ref PublicSubnetC
     Export:
       Name: !Sub "${AWS::StackName}::PublicSubnetC"
-
