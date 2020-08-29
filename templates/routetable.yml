@@ -1,0 +1,145 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Deploys a route table for the VCP, Internet Gatway and Nat Gatways.
+
+#-------------------------------------------------------------------------------------------------#
+# Resources                                                                                       #
+#-------------------------------------------------------------------------------------------------#
+Resources:
+  #-----------------------------------------------------------------------------------------------#
+  # Internet Gateway                                                                              #
+  #-----------------------------------------------------------------------------------------------# 
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: {{ company }}-vpc-internetgateway
+        - Key: VpcId
+          Value: !ImportValue {{ company }}-vpc::Vpc
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !ImportValue {{ company }}-vpc::Vpc
+
+{% if nat is defined %}
+  #-----------------------------------------------------------------------------------------------#
+  # Nat Gateway                                                                                   #
+  #-----------------------------------------------------------------------------------------------# 
+{% for az in nat %}
+  NatGateway{{ az| upper }}:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt Eip{{ az| upper }}.AllocationId
+      SubnetId: !ImportValue {{ company }}-vpc::PublicSubnet{{ az| upper }}
+  Eip{{ az| upper }}:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+  DefaultPrivateRoute{{ az| upper }}:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway{{ az| upper }} 
+
+{% endfor %}
+{% endif %}
+  #-----------------------------------------------------------------------------------------------#
+  # Public RouteTable                                                                             #
+  #-----------------------------------------------------------------------------------------------#   
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !ImportValue "{{ company }}-vpc::Vpc"
+      Tags:
+        - Key: Name
+          Value: {{ company }}-vpc-routetable-public
+
+  PublicSubnetAAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !ImportValue {{ company }}-vpc::PublicSubnetA
+
+  PublicSubnetBAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !ImportValue {{ company }}-vpc::PublicSubnetB
+
+  PublicSubnetCAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !ImportValue {{ company }}-vpc::PublicSubnetC
+
+  #-----------------------------------------------------------------------------------------------#
+  # Private RouteTable                                                                            #
+  #-----------------------------------------------------------------------------------------------#  
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !ImportValue {{ company }}-vpc::Vpc
+      Tags:
+        - Key: Name
+          Value: {{ company }}-vpc-routetable-private
+
+  PrivateSubnetAAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !ImportValue {{ company }}-vpc::PrivateSubnetA
+
+  PrivateSubnetBAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !ImportValue {{ company }}-vpc::PrivateSubnetB
+
+  PrivateSubnetCAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !ImportValue {{ company }}-vpc::PrivateSubnetC
+
+  #-----------------------------------------------------------------------------------------------#
+  # Secure RouteTable                                                                             #
+  #-----------------------------------------------------------------------------------------------#  
+  SecureRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !ImportValue {{ company }}-vpc::Vpc
+      Tags:
+        - Key: Name
+          Value: {{ company }}-vpc-routetable-secure
+
+  SecureSubnetAAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref SecureRouteTable
+      SubnetId: !ImportValue {{ company }}-vpc::SecureSubnetA
+
+  SecureSubnetBAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref SecureRouteTable
+      SubnetId: !ImportValue {{ company }}-vpc::SecureSubnetB
+
+  SecureSubnetCAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref SecureRouteTable
+      SubnetId: !ImportValue {{ company }}-vpc::SecureSubnetC
