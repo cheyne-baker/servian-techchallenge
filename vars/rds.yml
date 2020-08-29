@@ -1,0 +1,22 @@
+---
+
+rds:
+  engine: 
+    name: aurora-postgresql
+    mode: provisioned
+    version: 10.7
+  cluster:
+    encryptVolume: true
+    subnets:
+      secure:
+        - a
+        - b 
+  instance:
+    type: db.t3.medium
+  cfn:
+    parameters:
+      DbClusterIdentifier: default.aurora-postgresql10
+      Username: "servianadmin"
+
+
+  

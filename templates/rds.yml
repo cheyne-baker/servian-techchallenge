@@ -1,0 +1,86 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Deploys a PostgreSQL Cluster.
+
+#-------------------------------------------------------------------------------------------------#
+# Parameters                                                                                      #
+#-------------------------------------------------------------------------------------------------#
+Parameters:
+  DbClusterIdentifier:
+    Description: >
+      The name of the DB cluster parameter group to associate with this DB cluster.
+    Type: String
+  Username:
+    Description: >
+      The username for the Database
+    Type: String
+    NoEcho: true
+    MinLength: '1'
+    MaxLength: '16'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+
+#-------------------------------------------------------------------------------------------------#
+# Resources                                                                                       #
+#-------------------------------------------------------------------------------------------------#
+Resources:
+  #-----------------------------------------------------------------------------------------------#
+  # Relational Database Service (RDS)                                                             #
+  #-----------------------------------------------------------------------------------------------#  
+  RdsCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+{#- Due to Ansible Jinja2 templating syntax being similar to secrets manager setting block to be skipped #}
+{%- raw %}
+      MasterUsername: !Sub '{{resolve:secretsmanager:${RdsSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${RdsSecret}:SecretString:password}}'
+{% endraw %}
+      DBClusterIdentifier: "{{ company }}-rds-{{ rds.engine.name }}-cluster"
+      DBClusterParameterGroupName: !Ref DbClusterIdentifier
+      DBSubnetGroupName: !Ref RdsSubnetGroup
+      Engine: "{{ rds.engine.name }}"
+      EngineVersion: "{{ rds.engine.version }}"
+      StorageEncrypted: "{{ rds.cluster.encryptVolume }}"
+
+{% for az in rds.cluster.subnets.secure %}
+  RdsInstance{{ az | upper }}:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AvailabilityZone: "{{ region }}{{ az }}"
+      DBInstanceIdentifier: "{{ company }}-rds-{{ rds.engine.name }}-instance-{{ az }}"
+      Engine: "{{ rds.engine.name }}"
+      DBClusterIdentifier: !Ref RdsCluster
+      DBInstanceClass: "{{ rds.instance.type }}"
+{% endfor %}
+
+  RdsSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "{{ company }} {{ rds.engine.name }} subnet group"
+      DBSubnetGroupName: "{{ company }}-rds-{{ rds.engine.name }}-subnetgroup"
+      SubnetIds: 
+{% for az in rds.cluster.subnets.secure %}
+        - !ImportValue "{{ company }}-vpc::SecureSubnet{{ az | upper }}"
+{% endfor %}
+
+  #-----------------------------------------------------------------------------------------------#
+  # Secret Manager                                                                                #
+  #-----------------------------------------------------------------------------------------------#  
+  RdsSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: "This is the secret storage for the RDS Cluster"
+      Name: "{{ company }}-rds"
+      GenerateSecretString: 
+        SecretStringTemplate: !Sub '{"username": "${Username}"}'
+        GenerateStringKey: "password"
+        PasswordLength: 24
+        ExcludeCharacters: '"@/\'
+  
+  RdsSecretAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref RdsSecret
+      TargetId: !Ref RdsCluster
+      TargetType: AWS::RDS::DBCluster
+
