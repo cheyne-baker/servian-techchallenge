@@ -1,0 +1,12 @@
+---
+
+alb:
+  scheme: internet-facing
+  subnets:
+    public:
+      - a
+      - b 
+      - c
+  cfn:
+    parameters:
+      CertifcateArn: arn:aws:acm:ap-southeast-2:166050580270:certificate/7ed477ff-bf94-4b16-bafb-a495bd2499d4

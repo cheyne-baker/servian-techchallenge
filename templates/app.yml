@@ -1,0 +1,103 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Deploys a Internet facing ALB .
+
+#-------------------------------------------------------------------------------------------------#
+# Parameters                                                                                      #
+#-------------------------------------------------------------------------------------------------#
+Parameters:
+  CertifcateArn:
+    Description: >
+      The ARN of the HTTPS Loadbalancer default certificate.
+    Type: String
+
+#-------------------------------------------------------------------------------------------------#
+# Resources                                                                                       #
+#-------------------------------------------------------------------------------------------------#
+Resources:
+  #-----------------------------------------------------------------------------------------------#
+  # Application Load Balancer                                                                     #
+  #-----------------------------------------------------------------------------------------------# 
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: "{{ company }}-{{ deployItem }}"
+      Scheme: "{{ alb.scheme"
+      SecurityGroups:
+        - !Ref SecurityGroup
+      Subnets: 
+{% for az in alb.subnets.public %}
+        - !ImportValue "{{ company }}-vpc::PublicSubnet{{ az | upper }}"
+{% endfor %}
+      Type: application
+
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+              Protocol: "HTTPS"
+              Port: 443
+              Host: "#{host}"
+              Path: "/#{path}"
+              Query: "#{query}"
+              StatusCode: HTTP_301
+      LoadBalancerArn: !Ref Alb
+      Port: 80
+      Protocol: HTTP
+
+  HttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Certificates:
+        - CertificateArn: !Ref CertifcateArn
+      DefaultActions: 
+        - Type: fixed-response
+          FixedResponseConfig:
+            ContentType: "text/html"
+            MessageBody: "<html><h1> 404 - Not Found </h1></html>"
+            StatusCode: 404
+      LoadBalancerArn: !Ref Alb
+      Port: 443
+      Protocol: HTTPS
+
+  #-----------------------------------------------------------------------------------------------#
+  # Security Group                                                                                #
+  #-----------------------------------------------------------------------------------------------#
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupName: {{ company }}-alb-securitygroup
+      VpcId: !ImportValue {{ company }}-vpc::Vpc
+      GroupDescription: Security group for application load balancer
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          ToPort: 80
+          FromPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          ToPort: 443
+          FromPort: 443
+          CidrIp: 0.0.0.0/0
+
+#-------------------------------------------------------------------------------------------------#
+# Outputs                                                                                         #
+#-------------------------------------------------------------------------------------------------#
+Outputs:
+  Alb:
+    Description: Outputs the ARN for the Application Load Balancer
+    Value: !Ref Alb
+    Export:
+      Name: !Sub "${AWS::StackName}::Alb"
+  HttpsListener:
+    Description: Outputs the ARN for the Application Load Balancer HTTPS listner
+    Value: !Ref HttpsListener
+    Export:
+      Name: !Sub "${AWS::StackName}::HttpsListener"
+  SecurityGroup:
+    Description: Outputs the ID for the Security Group
+    Value: !GetAtt SecurityGroup.GroupId
+    Export:
+      Name: !Sub "${AWS::StackName}::SecurityGroup"
