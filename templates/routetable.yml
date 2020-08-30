@@ -25,30 +25,59 @@ Resources:
       InternetGatewayId: !Ref InternetGateway
       VpcId: !ImportValue {{ company }}-vpc::Vpc
 
-{% if nat is defined %}
   #-----------------------------------------------------------------------------------------------#
   # Nat Gateway                                                                                   #
   #-----------------------------------------------------------------------------------------------# 
-{% for az in nat %}
-  NatGateway{{ az| upper }}:
+  NatGatewayA:
     Type: AWS::EC2::NatGateway
     Properties:
-      AllocationId: !GetAtt Eip{{ az| upper }}.AllocationId
-      SubnetId: !ImportValue {{ company }}-vpc::PublicSubnet{{ az| upper }}
-  Eip{{ az| upper }}:
+      AllocationId: !GetAtt EipA.AllocationId
+      SubnetId: !ImportValue {{ company }}-vpc::PublicSubnetA
+  EipA:
     Type: AWS::EC2::EIP
     DependsOn: InternetGatewayAttachment
     Properties:
       Domain: vpc
-  DefaultPrivateRoute{{ az| upper }}:
+  DefaultPrivateRouteA:
     Type: AWS::EC2::Route
     Properties:
-      RouteTableId: !Ref PrivateRouteTable
+      RouteTableId: !Ref PrivateRouteTableA
       DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGateway{{ az| upper }} 
+      NatGatewayId: !Ref NatGatewayA
 
-{% endfor %}
-{% endif %}
+  NatGatewayB:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EipB.AllocationId
+      SubnetId: !ImportValue {{ company }}-vpc::PublicSubnetB
+  EipB:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+  DefaultPrivateRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableB
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayB
+
+  NatGatewayC:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EipC.AllocationId
+      SubnetId: !ImportValue {{ company }}-vpc::PublicSubnetB
+  EipC:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+  DefaultPrivateRouteC:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableC
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayC
   #-----------------------------------------------------------------------------------------------#
   # Public RouteTable                                                                             #
   #-----------------------------------------------------------------------------------------------#   
@@ -89,30 +118,46 @@ Resources:
   #-----------------------------------------------------------------------------------------------#
   # Private RouteTable                                                                            #
   #-----------------------------------------------------------------------------------------------#  
-  PrivateRouteTable:
+  PrivateRouteTableA:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !ImportValue {{ company }}-vpc::Vpc
       Tags:
         - Key: Name
-          Value: {{ company }}-vpc-routetable-private
+          Value: {{ company }}-vpc-routetable-private-a
+
+  PrivateRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !ImportValue {{ company }}-vpc::Vpc
+      Tags:
+        - Key: Name
+          Value: {{ company }}-vpc-routetable-private-b
+
+  PrivateRouteTableC:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !ImportValue {{ company }}-vpc::Vpc
+      Tags:
+        - Key: Name
+          Value: {{ company }}-vpc-routetable-private-c
 
   PrivateSubnetAAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref PrivateRouteTable
+      RouteTableId: !Ref PrivateRouteTableA
       SubnetId: !ImportValue {{ company }}-vpc::PrivateSubnetA
 
   PrivateSubnetBAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref PrivateRouteTable
+      RouteTableId: !Ref PrivateRouteTableB
       SubnetId: !ImportValue {{ company }}-vpc::PrivateSubnetB
 
   PrivateSubnetCAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref PrivateRouteTable
+      RouteTableId: !Ref PrivateRouteTableC
       SubnetId: !ImportValue {{ company }}-vpc::PrivateSubnetC
 
   #-----------------------------------------------------------------------------------------------#
