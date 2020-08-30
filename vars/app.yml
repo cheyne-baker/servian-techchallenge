@@ -11,10 +11,9 @@ alb:
 ecs:
   container:
     name: techchallenge
-    image:
-    healthCheck: /healthcheck
+    healthCheck: /healthcheck/
     cpu: 256
-    memory: 0.5GB
+    memory: 512
     port: 3000
     subnets:
       private:
@@ -22,6 +21,10 @@ ecs:
         - b
         - c
 
+app:
   cfn:
     parameters:
+      HostedZoneId: Z086798223K99DBLKOJ6U
       CertifcateArn: arn:aws:acm:ap-southeast-2:166050580270:certificate/7ed477ff-bf94-4b16-bafb-a495bd2499d4
+      TechChallengeUrl: techchallenge.nonprod.navist.com.au
+      ContainerImage: cheynembaker/techchallengeapp

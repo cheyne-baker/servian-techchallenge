@@ -1,7 +1,7 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  Deploys a Internet facing ALB .
+  Deploys a Internet facing ALB and ECS cluster to house tech challenge app.
 
 #-------------------------------------------------------------------------------------------------#
 # Parameters                                                                                      #
@@ -11,7 +11,18 @@ Parameters:
     Description: >
       The ARN of the HTTPS Loadbalancer default certificate.
     Type: String
-
+  ContainerImage: 
+    Description: >
+      The image url of the container
+    Type: String 
+  TechChallengeUrl: 
+    Description: >
+      The Public Url of the application
+    Type: String 
+  HostedZoneId: 
+    Description: >
+      The Hosted Zone for the Public Url of the application
+    Type: String 
 #-------------------------------------------------------------------------------------------------#
 # Resources                                                                                       #
 #-------------------------------------------------------------------------------------------------#
@@ -22,10 +33,10 @@ Resources:
   Alb:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: "{{ company }}-{{ deployItem }}"
-      Scheme: "{{ alb.scheme"
+      Name: "{{ company }}-alb"
+      Scheme: "{{ alb.scheme }}"
       SecurityGroups:
-        - !Ref SecurityGroup
+        - !Ref AlbSecurityGroup
       Subnets: 
 {% for az in alb.subnets.public %}
         - !ImportValue "{{ company }}-vpc::PublicSubnet{{ az | upper }}"
@@ -63,10 +74,189 @@ Resources:
       Port: 443
       Protocol: HTTPS
 
+  TargetGroup:
+    DependsOn: Alb
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: {{ ecs.container.healthCheck }}
+      HealthCheckTimeoutSeconds: 5
+      UnhealthyThresholdCount: 2
+      HealthyThresholdCount: 2
+      Name: {{ company }}-alb-{{ ecs.container.name }}
+      Port: {{ ecs.container.port }}
+      Protocol: HTTP
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 60
+      TargetType: ip
+      VpcId: !ImportValue {{ company }}-vpc::Vpc
+
+  ListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+      Conditions:
+        - Field: host-header
+          Values:
+            - !Ref TechChallengeUrl
+      ListenerArn: !Ref HttpsListener
+      Priority: 10
+
   #-----------------------------------------------------------------------------------------------#
-  # Security Group                                                                                #
+  # Route53 Record                                                                                #
   #-----------------------------------------------------------------------------------------------#
-  SecurityGroup:
+  RecordSetApi:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Name: !Ref TechChallengeUrl
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt Alb.DNSName
+        HostedZoneId: !GetAtt Alb.CanonicalHostedZoneID
+        EvaluateTargetHealth: false
+      HostedZoneId: !Sub /hostedzone/${HostedZoneId}
+
+  #-----------------------------------------------------------------------------------------------#
+  # ECS Fargate                                                                                   #
+  #-----------------------------------------------------------------------------------------------#
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: "{{ company }}-ecs-cluster"
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      Family: "{{ company }}-ecs-{{ ecs.container.name }}-taskdefinition"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: "{{ ecs.container.cpu }}"
+      Memory: "{{ ecs.container.memory }}"
+      ExecutionRoleArn: !Ref ExecutionRole
+      TaskRoleArn: !Ref TaskRole
+      ContainerDefinitions:
+        - Name: "{{ ecs.container.name }}"
+          Image: !Ref ContainerImage
+          Essential: true
+          Command:
+            - "serve"
+          PortMappings:
+            - ContainerPort: "{{ ecs.container.port }}"
+          Secrets:
+            - Name: VTT_DBUSER
+              ValueFrom: !Join
+                - ''
+                - - !ImportValue {{ company }}-rds::Secret
+                  - ':username::'
+            - Name: VTT_DBPASSWORD
+              ValueFrom: !Join
+                - '' 
+                - - !ImportValue {{ company }}-rds::Secret
+                  - ':password::'
+            - Name: VTT_DBPORT
+              ValueFrom: !Join
+                - ''
+                - - !ImportValue {{ company }}-rds::Secret
+                  - ':port::'
+            - Name: VTT_DBHOST
+              ValueFrom: !Join
+                - '' 
+                - - !ImportValue {{ company }}-rds::Secret
+                  - ':host::'
+            - Name: VTT_DBNAME
+              ValueFrom: !Join
+                - '' 
+                - - !ImportValue {{ company }}-rds::Secret
+                  - ':dbname::'
+          Environment:
+            - Name: VTT_LISTENHOST
+              Value: "0.0.0.0"
+
+  Service:
+    Type: AWS::ECS::Service
+    Properties: 
+      ServiceName: "{{ ecs.container.name }}"
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref TaskDefinition
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+      DesiredCount: 2
+      HealthCheckGracePeriodSeconds: 30
+      LaunchType: FARGATE
+      NetworkConfiguration: 
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+{% for az in ecs.container.subnets.private %}
+            - !ImportValue "{{ company }}-vpc::PrivateSubnet{{ az | upper }}"
+{% endfor %}
+          SecurityGroups:
+            - !Ref TaskSecurityGroup
+      LoadBalancers:
+        - ContainerName: "{{ ecs.container.name }}"
+          ContainerPort: "{{ ecs.container.port }}"
+          TargetGroupArn: !Ref TargetGroup
+
+  #-----------------------------------------------------------------------------------------------#
+  # IAM Roles                                                                                     #
+  #-----------------------------------------------------------------------------------------------#  
+
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "{{ company }}-ecs-executionrole"
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+      Policies:
+        - PolicyName: RdsSecrets
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement: 
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !ImportValue {{ company }}-rds::Secret
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: {{ company }}-ecs-taskrole
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+
+  AutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: {{ company }}-ecs-autoscalingrole
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceAutoscaleRole'
+
+  #-----------------------------------------------------------------------------------------------#
+  # Security Groups                                                                               #
+  #-----------------------------------------------------------------------------------------------#
+  AlbSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties: 
       GroupName: {{ company }}-alb-securitygroup
@@ -81,23 +271,55 @@ Resources:
           ToPort: 443
           FromPort: 443
           CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: {{ company }}-alb-{{ ecs.container.name }}-securitygroup
 
-#-------------------------------------------------------------------------------------------------#
-# Outputs                                                                                         #
-#-------------------------------------------------------------------------------------------------#
-Outputs:
-  Alb:
-    Description: Outputs the ARN for the Application Load Balancer
-    Value: !Ref Alb
-    Export:
-      Name: !Sub "${AWS::StackName}::Alb"
-  HttpsListener:
-    Description: Outputs the ARN for the Application Load Balancer HTTPS listner
-    Value: !Ref HttpsListener
-    Export:
-      Name: !Sub "${AWS::StackName}::HttpsListener"
-  SecurityGroup:
-    Description: Outputs the ID for the Security Group
-    Value: !GetAtt SecurityGroup.GroupId
-    Export:
-      Name: !Sub "${AWS::StackName}::SecurityGroup"
+  TaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ecs service
+      VpcId: !ImportValue {{ company }}-vpc::Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: {{ ecs.container.port }}
+          ToPort: {{ ecs.container.port }}
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+      Tags:
+        - Key: Name
+          Value: {{ company }}-ecs-{{ ecs.container.name }}-securitygroup
+
+  RdsSecurityGroupIngressTask:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties: 
+      IpProtocol: tcp
+      FromPort: !ImportValue "{{ company }}-rds::Cluster::Endpoint::Port"
+      ToPort: !ImportValue "{{ company }}-rds::Cluster::Endpoint::Port"
+      GroupId: !ImportValue "{{ company }}-rds::SecurityGroup::GroupId"
+      SourceSecurityGroupId: !GetAtt TaskSecurityGroup.GroupId
+
+  #-----------------------------------------------------------------------------------------------#
+  # Auto Scaling                                                                                  #
+  #-----------------------------------------------------------------------------------------------#
+  AutoScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MinCapacity: 1
+      MaxCapacity: 4
+      ResourceId: !Sub "service/${EcsCluster}/{{ ecs.container.name}}"
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN: !GetAtt AutoScalingRole.Arn
+
+  AutoScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: {{ company }}-ecs-{{ ecs.container.name }}-scalingpolicy
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref AutoScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 20
+        ScaleOutCooldown: 20
+        TargetValue: 65.0
