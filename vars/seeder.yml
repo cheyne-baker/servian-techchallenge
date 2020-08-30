@@ -1,0 +1,7 @@
+---
+
+seeder:
+  cfn:
+    parameters:
+      ContainerImage: cheynembaker/techchallengeapp
+      RdsSecret: servian-rds

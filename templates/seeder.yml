@@ -1,0 +1,146 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  DB Seeder cluster for Tech Challenge DB
+
+#-------------------------------------------------------------------------------------------------#
+# Parameters                                                                                      #
+#-------------------------------------------------------------------------------------------------#
+Parameters:
+  ContainerImage: 
+    Description: >
+      The image url of the container
+    Type: String 
+  RdsSecret:
+    Description: >
+      The RDS secert to access the database
+    Type: String
+    NoEcho: true
+#-------------------------------------------------------------------------------------------------#
+# Resources                                                                                       #
+#-------------------------------------------------------------------------------------------------#
+Resources:
+  #-----------------------------------------------------------------------------------------------#
+  # AutoScalingGroup                                                                              #
+  #-----------------------------------------------------------------------------------------------#
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: "{{ company }}-{{ deployItem }}"
+      MaxSize: 1
+      MinSize: 1
+      Tags:
+        - Key: Name
+          Value: "{{ company }}-{{ deployItem }}"
+          PropagateAtLaunch: true
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      VPCZoneIdentifier:
+        - !ImportValue "{{ company }}-vpc::PrivateSubnetA"
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT15M
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: true
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 1
+        MaxBatchSize: 2
+        PauseTime: PT5M
+        WaitOnResourceSignals: true
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: "{{ company }}-{{ deployItem }}-launchtemplate"
+      LaunchTemplateData:
+        BlockDeviceMappings: 
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 16
+              VolumeType: gp2
+              DeleteOnTermination: true
+        IamInstanceProfile:
+          Name: !Ref InstanceProfile
+        ImageId: ami-0ded330691a314693
+        InstanceType: t3a.nano
+        UserData:
+          Fn::Base64:
+            !Sub |
+              #!/bin/bash -xe
+              yum update -y
+              yum install -y aws-cfn-bootstrap jq
+              amazon-linux-extras install docker -y 
+              service docker start
+              export DBHOST=$(aws secretsmanager get-secret-value --secret-id ${RdsSecret} --region ${AWS::Region} | jq --raw-output .SecretString | jq -r ."host")
+              export DBNAME=$(aws secretsmanager get-secret-value --secret-id ${RdsSecret} --region ${AWS::Region} | jq --raw-output .SecretString | jq -r ."dbname")
+              export PORT=$(aws secretsmanager get-secret-value --secret-id ${RdsSecret} --region ${AWS::Region} | jq --raw-output .SecretString | jq -r ."port")
+              export DBUSER=$(aws secretsmanager get-secret-value --secret-id ${RdsSecret} --region ${AWS::Region} | jq --raw-output .SecretString | jq -r ."username")
+              export DBPASSWORD=$(aws secretsmanager get-secret-value --secret-id ${RdsSecret} --region ${AWS::Region} | jq --raw-output .SecretString | jq -r ."password")
+              docker run -e VTT_DBHOST=$DBHOST -e VTT_DBPORT=$PORT -e VTT_DBNAME=$DBNAME -e VTT_DBUSER=$DBUSER -e VTT_DBPASSWORD=$DBPASSWORD ${ContainerImage} updatedb -s
+              # CloudFormation signal
+              /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource AutoScalingGroup --region ${AWS::Region}
+        SecurityGroupIds:
+          - !Ref SecurityGroup
+
+  #-----------------------------------------------------------------------------------------------#
+  # IAM Roles                                                                                     #
+  #-----------------------------------------------------------------------------------------------#
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - ec2:ModifyInstanceAttribute
+                  - ec2:Describe*
+                  - cloudformation:SignalResource
+                  - cloudformation:DescribeStacks
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !ImportValue "{{ company }}-rds::Secret"
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+      - !Ref InstanceRole
+      Path: /
+
+  #-----------------------------------------------------------------------------------------------#
+  # Security Groups                                                                                    #
+  #-----------------------------------------------------------------------------------------------#
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for Seeder Instance
+      VpcId: !ImportValue {{ company }}-vpc::Vpc
+
+  RdsSecurityGroupIngressAutoScalingGroup:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties: 
+      IpProtocol: tcp
+      FromPort: !ImportValue "{{ company }}-rds::Cluster::Endpoint::Port"
+      ToPort: !ImportValue "{{ company }}-rds::Cluster::Endpoint::Port"
+      GroupId: !ImportValue "{{ company }}-rds::SecurityGroup::GroupId"
+      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
