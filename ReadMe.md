@@ -17,13 +17,13 @@ docker run -e AWS_ACCESS_KEY_ID=<AWS Access Key> -e AWS_SECRET_ACCESS_KEY=<AWS S
 ```
 #### Linux
 ### Extra Options
-####Environment Variables
+#### Environment Variables
 DEPLOY=< vpc | routetable | rds | seeder | app | all > 
 AWS_ACCESS_KEY_ID=< IAM User Access Key Id >
 AWS_SECRET_ACCESS_KEY=< IAM User Secret Access Key >
 *Note: 'all' will deploy or destroy the entire solution in order end to end*
 
-####Optional variables
+#### Optional variables
 region=< ap-southeast-2 (default) >
 state=< absent | present (default) >
 
