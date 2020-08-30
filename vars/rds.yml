@@ -15,8 +15,9 @@ rds:
     type: db.t3.medium
   cfn:
     parameters:
-      DbClusterIdentifier: default.aurora-postgresql10
-      Username: "servianadmin"
+      DatabaseName: app
+      DbParameterGroup: default.aurora-postgresql10
+      Username: servianadmin
 
 
   

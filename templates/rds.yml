@@ -7,9 +7,13 @@ Description: >
 # Parameters                                                                                      #
 #-------------------------------------------------------------------------------------------------#
 Parameters:
-  DbClusterIdentifier:
+  DbParameterGroup:
     Description: >
       The name of the DB cluster parameter group to associate with this DB cluster.
+    Type: String
+  DatabaseName:
+    Description: >
+      The name of the initial database in the cluster
     Type: String
   Username:
     Description: >
@@ -27,33 +31,37 @@ Resources:
   #-----------------------------------------------------------------------------------------------#
   # Relational Database Service (RDS)                                                             #
   #-----------------------------------------------------------------------------------------------#  
-  RdsCluster:
+  Cluster:
     Type: AWS::RDS::DBCluster
     Properties:
 {#- Due to Ansible Jinja2 templating syntax being similar to secrets manager setting block to be skipped #}
 {%- raw %}
-      MasterUsername: !Sub '{{resolve:secretsmanager:${RdsSecret}:SecretString:username}}'
-      MasterUserPassword: !Sub '{{resolve:secretsmanager:${RdsSecret}:SecretString:password}}'
+      MasterUsername: !Sub '{{resolve:secretsmanager:${Secret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${Secret}:SecretString:password}}'
 {% endraw %}
       DBClusterIdentifier: "{{ company }}-rds-{{ rds.engine.name }}-cluster"
-      DBClusterParameterGroupName: !Ref DbClusterIdentifier
-      DBSubnetGroupName: !Ref RdsSubnetGroup
+      DBClusterParameterGroupName: !Ref DbParameterGroup
+      DatabaseName: !Ref DatabaseName
+      DBSubnetGroupName: !Ref SubnetGroup
       Engine: "{{ rds.engine.name }}"
       EngineVersion: "{{ rds.engine.version }}"
       StorageEncrypted: "{{ rds.cluster.encryptVolume }}"
+      Port: 5432
+      VpcSecurityGroupIds:
+        - !Ref SecurityGroup
 
 {% for az in rds.cluster.subnets.secure %}
-  RdsInstance{{ az | upper }}:
+  Instance{{ az | upper }}:
     Type: AWS::RDS::DBInstance
     Properties:
       AvailabilityZone: "{{ region }}{{ az }}"
       DBInstanceIdentifier: "{{ company }}-rds-{{ rds.engine.name }}-instance-{{ az }}"
       Engine: "{{ rds.engine.name }}"
-      DBClusterIdentifier: !Ref RdsCluster
+      DBClusterIdentifier: !Ref Cluster
       DBInstanceClass: "{{ rds.instance.type }}"
 {% endfor %}
 
-  RdsSubnetGroup:
+  SubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
       DBSubnetGroupDescription: "{{ company }} {{ rds.engine.name }} subnet group"
@@ -64,9 +72,25 @@ Resources:
 {% endfor %}
 
   #-----------------------------------------------------------------------------------------------#
+  # Security Group                                                                                #
+  #-----------------------------------------------------------------------------------------------#  
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "{{ company }}-rds-{{ rds.engine.name }} secruity group"
+      VpcId: !ImportValue {{ company }}-vpc::Vpc
+
+  SecurityGroupIngressSelf:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: -1
+      GroupId: !Ref SecurityGroup
+      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
+
+  #-----------------------------------------------------------------------------------------------#
   # Secret Manager                                                                                #
   #-----------------------------------------------------------------------------------------------#  
-  RdsSecret:
+  Secret:
     Type: AWS::SecretsManager::Secret
     Properties:
       Description: "This is the secret storage for the RDS Cluster"
@@ -77,10 +101,34 @@ Resources:
         PasswordLength: 24
         ExcludeCharacters: '"@/\'
   
-  RdsSecretAttachment:
+  SecretAttachment:
     Type: AWS::SecretsManager::SecretTargetAttachment
     Properties:
-      SecretId: !Ref RdsSecret
-      TargetId: !Ref RdsCluster
+      SecretId: !Ref Secret
+      TargetId: !Ref Cluster
       TargetType: AWS::RDS::DBCluster
 
+#-------------------------------------------------------------------------------------------------#
+# Outputs                                                                                         #
+#-------------------------------------------------------------------------------------------------#
+Outputs:
+  ClusterEndpointAddress:
+    Description: Outputs the connection endpoint address
+    Value: !GetAtt Cluster.Endpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}::Cluster::Endpoint::Address"
+  ClusterEndpointPort:
+    Description: Outputs the connection endpoint port
+    Value: !GetAtt Cluster.Endpoint.Port
+    Export:
+      Name: !Sub "${AWS::StackName}::Cluster::Endpoint::Port"
+  SecurityGroupGroupId:
+    Description: Outputs the secruity group ID of the cluster
+    Value: !GetAtt SecurityGroup.GroupId
+    Export:
+      Name: !Sub "${AWS::StackName}::SecurityGroup::GroupId"
+  Secret:
+    Description: Outputs the arn of the secret
+    Value: !Ref Secret
+    Export:
+      Name: !Sub "${AWS::StackName}::Secret"
