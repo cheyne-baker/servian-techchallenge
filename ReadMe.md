@@ -21,6 +21,7 @@ docker run -e AWS_ACCESS_KEY_ID=<AWS Access Key> -e AWS_SECRET_ACCESS_KEY=<AWS S
 * **DEPLOY** =< vpc || routetable || rds || seeder || app || all > 
 * **AWS_ACCESS_KEY_ID** =< IAM User Access Key Id >
 * **AWS_SECRET_ACCESS_KEY** =< IAM User Secret Access Key >
+
 *Note: 'all' will deploy or destroy the entire solution in order end to end*
 
 #### Optional variables
@@ -38,6 +39,7 @@ docker build -t servian/ansible:v1.0 -t servian/ansible:latest ./docker
 ### 3. Set ACM ARN, Hosted Zone Id, Url
 Values can be found in the vars folder in the app.yml file
 <repo>/vars/app.yml
+
 Change lines:
 ```
 27  HostedZoneId: <insert>
