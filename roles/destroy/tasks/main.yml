@@ -1,0 +1,7 @@
+- name: Destroy Cloudformation Template
+  cloudformation:
+    stack_name: "{{ company }}-{{ deployItem }}"
+    state: "{{ state }}"
+    region: "{{ region }}"
+    aws_access_key: "{{ accessKey }}"
+    aws_secret_key: "{{ secretKey }}"

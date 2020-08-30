@@ -43,6 +43,25 @@
         - state == "present"
         - deploy == "all"
 
+    - name: Destroy Cloudfromation Deployment
+      import_role:
+        name: destroy
+      vars: 
+        deployItem: "{{ deploy }}"
+      when: 
+        - state == "absent"
+        - deploy != "all"
+
+    - name: Destroy Cloudformation Deployment End to End
+      include_role:
+        name: destroy
+      vars: 
+        deployItem: "{{ item }}"
+      loop: "{{ all | reverse | list }}"
+      when: 
+        - state == "absent"
+        - deploy == "all"
+
   post_tasks:
   
     - name: "Clean Up Build Folder"
